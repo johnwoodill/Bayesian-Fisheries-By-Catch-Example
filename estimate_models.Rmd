@@ -1,0 +1,65 @@
+---
+title: "Something like Martin et al. 2015 in Stan"
+author: ""
+date: "10/4/2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(rstan)
+library(tidyverse)
+
+# These lines allow for parallel chains in the Hamiltonian Monte Carlo steps.
+rstan_options(auto_write = TRUE)
+options(mc.cores = parallel::detectCores())
+```
+
+## Reformat data for Stan
+
+The first thing we have to do is put the simulated data in a format Stan can read.  Stan requires data in lists, so we have to do the following manipulation. Note each of the objects in the list correspond to a data element defined in the stan programs.
+
+```{r}
+source("data_sim.R")
+dat_stan <- list(N = length(dat$year),
+                 sets = dat$sets,
+                 inter = dat$inter,
+                 mort = dat$mort)
+```
+
+## Estimate the Poisson model for bycatch interactions
+
+First, we'll estimate the rate of interaction per set using the Poisson model specification.
+
+```{r, echo = T, results = 'hide'}
+pois_fit <- stan(file = "poisson_model.stan", 
+                 data = dat_stan, 
+                 iter = 1000, 
+                 chains = 4,
+                 seed = 1234)
+```
+
+Now, lets check out the fit parameter to see if it comes close to what we know as the true rate parameter of 0.002.
+```{r}
+print(pois_fit)
+plot(pois_fit)
+```
+
+Alhtough we can't see the parameter estimate because it's being masked by 0 because of rounding, the Rhat close to 1 indicates we got model convergence.  In the plot of the parameter we can see the posterior distribution for eta.  Looks pretty good!
+
+## Estimate the binomial model for mortality resulting from bycatch interaction
+```{r, echo = T, results = 'hide'}
+binom_fit <- stan(file = "binomial_model.stan", 
+                 data = dat_stan, 
+                 iter = 1000, 
+                 chains = 4,
+                 seed = 1234)
+```
+
+```{r}
+print(binom_fit)
+plot(binom_fit)
+```
+
+Again, given we only have 20 observations to estimate the model with, this looks pretty good to the known true value.
+
